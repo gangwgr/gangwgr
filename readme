@@ -1,0 +1,31 @@
+1. Challenge #:1
+I have created demo main.tf terraform file.
+
+2. Challenge #:2
+Install go first
+And Run below command
+go run aws_cloud.go aws your_instance_name
+
+Output:(Note: Confidential information is xxxx)
+{
+  "AvailabilityZone": "xxxx",
+  "ImageID": "xxxx",
+  "InstanceID": "xxxx",
+  "InstanceLifecycle": "xxxx",
+  "InstanceType": "xxxx",
+  "KernelId": "xxxx",
+  "Monitoring": "xxxx",
+  "Platform": "xxxx",
+  "PrivateIP": "xxxx",
+  "PublicIP": "xxxx",
+  "State": "xxxx",
+  "SubnetID": "xxxx"
+}
+
+3. Challenge #:3
+Run below command
+go run user_input_nested.go '{"a":{"b":{"c":"d"}}}' a/b/c               
+
+Output:
+Value: d
+
