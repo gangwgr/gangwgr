@@ -9,5 +9,5 @@
 
 <p align="center">
   <img src="https://github-readme-stats.vercel.app/api/top-langs?username=gangwgr&show_icons=true&locale=en&layout=compact" height="150" alt="gangwgr" />
-  <img src="https://github-readme-stats.vercel.app/api?username=gangwgr&hide_title=false&hide_rank=false&show_icons=true&include_all_commits=true&count_private=true&disable_animations=false&theme=default&locale=en&hide_border=false&order=1&custom_title=My%20GitHub%20Stats" height="150" alt="stats graph"/>
+  <img src="https://github-readme-stats.vercel.app/api?username=gangwgr&hide_title=false&hide_rank=false&show_icons=true&include_all_commits=true&count_private=true&count_public=true&disable_animations=false&theme=default&locale=en&hide_border=false&order=1&custom_title=My%20GitHub%20Stats" height="150" alt="stats graph"/>
 </p>
