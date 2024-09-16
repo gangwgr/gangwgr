@@ -6,8 +6,9 @@ from itertools import combinations
 spark = SparkSession.builder.appName("CompareCSV").getOrCreate()
 
 # Load the data from CSV files (auto-infer schema and header)
-df1 = spark.read.option("header", True).csv("/files1.csv")
-df2 = spark.read.option("header", True).csv("/files2.csv")
+# Read pipe-delimited CSV files with headers
+df1 = spark.read.option("header", True).option("delimiter", ",").csv("/files1.csv")
+df2 = spark.read.option("header", True).option("delimiter", ",").csv("/files2.csv")
 
 # Display the schema
 print("Schema for df1:")
