@@ -5,8 +5,8 @@ from pyspark.sql.functions import col, concat_ws, broadcast, coalesce, lit
 spark = SparkSession.builder.appName("CompareCSV").getOrCreate()
 
 # Load data without predefined schema
-df1 = spark.read.option("header", True).option("delimiter", ",").option("quote", '"').option("escape", '"').csv("/final_data1.csv")
-df2 = spark.read.option("header", True).option("delimiter", ",").option("quote", '"').option("escape", '"').csv("/final_data3.csv")
+df1 = spark.read.option("header", True).option("delimiter", ",").option("quote", '"').option("escape", '"').csv("/files2.csv")
+df2 = spark.read.option("header", True).option("delimiter", ",").option("quote", '"').option("escape", '"').csv("/files1.csv")
 
 # Display schema
 print("Schema for df1:")
@@ -55,9 +55,10 @@ for col_name in df1.columns:
         total_mismatches += mismatch_count
         print(f"Mismatch count for column '{col_name}': {mismatch_count}")
         
-        # Select the primary key and the mismatched column values
-        mismatches_df.select([col(f"{key}_left").alias(f"{key}_primary") for key in primary_keys] + 
-                             [col(f"{col_name}_left").alias("df1"), col(f"{col_name}_right").alias("df2")]).show()
+        # Select the primary key values from both files and the mismatched column values
+        mismatches_df.select([col(f"{key}_left").alias(f"{key}_df1") for key in primary_keys] + 
+                             [col(f"{key}_right").alias(f"{key}_df2") for key in primary_keys] + 
+                             [col(f"{col_name}_left").alias("df1_value"), col(f"{col_name}_right").alias("df2_value")]).show()
 
 print(f"Total mismatches across all columns: {total_mismatches}")
 
