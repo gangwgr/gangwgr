@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, concat_ws, broadcast, coalesce
+from pyspark.sql.functions import col, concat_ws, broadcast, coalesce, lit
 from pyspark.sql.types import StructType, StructField, StringType
 
 # Initialize Spark session
@@ -43,11 +43,12 @@ total_mismatches = 0
 for col_name in df1.columns:
     if col_name in primary_keys:
         continue  # Skip primary key columns for mismatch counting
-    
-    # Compare columns, treating NULLs as equal
+
+    # Handle NULLs properly
     mismatches_df = joined_df.filter(
-        (coalesce(col(f"{col_name}_left"), col(f"{col_name}_right")) != col(f"{col_name}_right")) | 
-        (col(f"{col_name}_left").isNull() & col(f"{col_name}_right").isNull())
+        (coalesce(col(f"{col_name}_left"), lit("")) != coalesce(col(f"{col_name}_right"), lit(""))) |
+        (col(f"{col_name}_left").isNull() & ~col(f"{col_name}_right").isNull()) |
+        (~col(f"{col_name}_left").isNull() & col(f"{col_name}_right").isNull())
     )
     
     mismatch_count = mismatches_df.count()
