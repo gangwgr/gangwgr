@@ -1,2 +1,1 @@
-spark-submit script2.py --file1 /Users/rahulgangwar/office-work/final_data1.csv --file2 /Users/rahulgangwar/office-work/final_data3.csv --primary-keys id --report-path /Users/rahulgangwar/office-work/reports
-
+spark-submit script5.py --file1 /Users/rahulgangwar/office-work/final_data1.csv --file2 /Users/rahulgangwar/office-work/final_data3.csv --primary-keys iw,num,DOL_Vehicle_ID --report-path reports/comparison_report.html
