@@ -1,6 +1,13 @@
 #!/bin/bash
 
 # Usage: ./archive_partitioned_table.sh mydb.mytable 2024-01-01 2024-01-31
+PART_COLS=$(hive -e "USE ${DB_NAME}; SHOW CREATE TABLE ${TABLE_NAME};" \
+  | sed -n '/PARTITIONED BY/,/)/p' \
+  | grep -v 'PARTITIONED BY' \
+  | tr -d '`' \
+  | awk -F' ' '{print $1}' \
+  | tr '\n' ',' \
+  | sed 's/,$//')
 
 set -euo pipefail
 
