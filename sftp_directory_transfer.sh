@@ -8,9 +8,8 @@
 set -e  # Exit on any error
 
 # Default values
-SOURCE_PATH=""
+DIRECTORY_PATH=""
 TARGET_HOST=""
-TARGET_PATH=""
 BACKUP_SUFFIX=$(date +"%Y%m%d_%H%M%S")
 CURRENT_USER=$(whoami)
 
@@ -21,17 +20,16 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Required Options:"
-    echo "  --source-path PATH      Local source directory path"
+    echo "  --directory-path PATH   Directory path (same on both source and target)"
     echo "  --target-host HOST      Target server hostname/IP"
-    echo "  --target-path PATH      Target directory path on remote server"
     echo ""
     echo "Note: Script uses current user ($CURRENT_USER) for SFTP connection"
     echo "Authentication: Uses default SFTP authentication (keys or password prompt)"
     echo ""
     echo "Examples:"
-    echo "  $0 --source-path /opt/app --target-host 192.168.1.20 --target-path /opt/app"
+    echo "  $0 --directory-path /opt/app --target-host 192.168.1.20"
     echo ""
-    echo "  $0 --source-path /var/www/html --target-host server2.com --target-path /var/www/html"
+    echo "  $0 --directory-path /var/www/html --target-host server2.com"
 }
 
 # Function to log messages
@@ -59,13 +57,13 @@ log() {
 validate_params() {
     local errors=0
     
-    if [[ -z "$SOURCE_PATH" ]]; then
-        log "ERROR" "Source path is required"
+    if [[ -z "$DIRECTORY_PATH" ]]; then
+        log "ERROR" "Directory path is required"
         ((errors++))
     fi
     
-    if [[ ! -d "$SOURCE_PATH" ]]; then
-        log "ERROR" "Source directory does not exist: $SOURCE_PATH"
+    if [[ ! -d "$DIRECTORY_PATH" ]]; then
+        log "ERROR" "Directory does not exist: $DIRECTORY_PATH"
         ((errors++))
     fi
     
@@ -73,13 +71,6 @@ validate_params() {
         log "ERROR" "Target host is required"
         ((errors++))
     fi
-    
-    if [[ -z "$TARGET_PATH" ]]; then
-        log "ERROR" "Target path is required"
-        ((errors++))
-    fi
-    
-
     
     if [[ $errors -gt 0 ]]; then
         log "ERROR" "Validation failed with $errors error(s)"
@@ -143,8 +134,9 @@ transfer_directory() {
     local target_path=$3
     
     log "INFO" "Starting directory transfer..."
-    log "INFO" "Source: $(hostname):$source_path"
-    log "INFO" "Target: $CURRENT_USER@$target_host:$target_path"
+    log "INFO" "Directory: $source_path"
+    log "INFO" "From: $(hostname)"
+    log "INFO" "To: $CURRENT_USER@$target_host"
     
     local target_parent=$(dirname "$target_path")
     
@@ -191,16 +183,12 @@ EOF
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --source-path)
-            SOURCE_PATH="$2"
+        --directory-path)
+            DIRECTORY_PATH="$2"
             shift 2
             ;;
         --target-host)
             TARGET_HOST="$2"
-            shift 2
-            ;;
-        --target-path)
-            TARGET_PATH="$2"
             shift 2
             ;;
         *)
@@ -210,6 +198,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Set source and target paths to be the same
+SOURCE_PATH="$DIRECTORY_PATH"
+TARGET_PATH="$DIRECTORY_PATH"
 
 # Main execution
 main() {
