@@ -11,10 +11,7 @@ set -e  # Exit on any error
 SOURCE_PATH=""
 TARGET_HOST=""
 TARGET_PATH=""
-SSH_KEY=""
 BACKUP_SUFFIX=$(date +"%Y%m%d_%H%M%S")
-DRY_RUN=false
-VERBOSE=false
 CURRENT_USER=$(whoami)
 
 # Logging without colors
@@ -28,20 +25,13 @@ usage() {
     echo "  --target-host HOST      Target server hostname/IP"
     echo "  --target-path PATH      Target directory path on remote server"
     echo ""
-    echo "Optional Options:"
-    echo "  --ssh-key PATH          Path to SSH private key file"
-    echo "  --backup-suffix SUFFIX  Custom backup suffix (default: YYYYMMDD_HHMMSS)"
-    echo "  --dry-run               Show what would be done without executing"
-    echo "  --verbose               Enable verbose output"
-    echo "  --help                  Show this help message"
-    echo ""
     echo "Note: Script uses current user ($CURRENT_USER) for remote connection"
+    echo "Authentication: Tries SSH keys first, then prompts for password"
     echo ""
     echo "Examples:"
     echo "  $0 --source-path /opt/app --target-host 192.168.1.20 --target-path /opt/app"
     echo ""
-    echo "  $0 --source-path /var/www/html --target-host server2.com \\"
-    echo "     --target-path /var/www/html --ssh-key ~/.ssh/deploy_key --verbose"
+    echo "  $0 --source-path /var/www/html --target-host server2.com --target-path /var/www/html"
 }
 
 # Function to log messages
@@ -61,11 +51,7 @@ log() {
         "ERROR")
             echo "[ERROR] ${timestamp} - $message" >&2
             ;;
-        "DEBUG")
-            if [[ "$VERBOSE" == "true" ]]; then
-                echo "[DEBUG] ${timestamp} - $message"
-            fi
-            ;;
+
     esac
 }
 
@@ -93,10 +79,7 @@ validate_params() {
         ((errors++))
     fi
     
-    if [[ -n "$SSH_KEY" && ! -f "$SSH_KEY" ]]; then
-        log "ERROR" "SSH key file not found: $SSH_KEY"
-        ((errors++))
-    fi
+
     
     if [[ $errors -gt 0 ]]; then
         log "ERROR" "Validation failed with $errors error(s)"
@@ -108,21 +91,11 @@ validate_params() {
 build_ssh_opts() {
     local ssh_opts=""
     
-    if [[ -n "$SSH_KEY" ]]; then
-        ssh_opts="$ssh_opts -i $SSH_KEY"
-        # Prefer key auth but allow password fallback
-        ssh_opts="$ssh_opts -o PreferredAuthentications=publickey,password"
-    else
-        # Try keys first (if available), then password
-        ssh_opts="$ssh_opts -o PreferredAuthentications=publickey,password"
-    fi
+    # Try keys first (if available), then password
+    ssh_opts="$ssh_opts -o PreferredAuthentications=publickey,password"
     
     # Allow both key and password authentication
     ssh_opts="$ssh_opts -o StrictHostKeyChecking=ask -o PasswordAuthentication=yes -o PubkeyAuthentication=yes"
-    
-    if [[ "$VERBOSE" != "true" ]]; then
-        ssh_opts="$ssh_opts -q"
-    fi
     
     echo "$ssh_opts"
 }
@@ -133,7 +106,7 @@ check_remote_directory() {
     local path=$2
     local ssh_opts=$(build_ssh_opts)
     
-    log "DEBUG" "Checking if directory exists: $CURRENT_USER@$host:$path"
+
     
     if ssh $ssh_opts $CURRENT_USER@$host "test -d '$path'" 2>/dev/null; then
         return 0  # Directory exists
@@ -151,10 +124,7 @@ create_backup() {
     
     log "INFO" "Creating backup: $path -> $backup_path"
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log "INFO" "[DRY RUN] Would create backup: $CURRENT_USER@$host:$backup_path"
-        return 0
-    fi
+
     
     if ssh $ssh_opts $CURRENT_USER@$host "mv '$path' '$backup_path'" 2>/dev/null; then
         log "INFO" "Backup created successfully: $backup_path"
@@ -175,10 +145,7 @@ transfer_directory() {
     log "INFO" "Source: $(hostname):$source_path"
     log "INFO" "Target: $CURRENT_USER@$target_host:$target_path"
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log "INFO" "[DRY RUN] Would transfer directory from source to target"
-        return 0
-    fi
+
     
     local ssh_opts=$(build_ssh_opts)
     local target_parent=$(dirname "$target_path")
@@ -230,28 +197,8 @@ while [[ $# -gt 0 ]]; do
             TARGET_PATH="$2"
             shift 2
             ;;
-        --ssh-key)
-            SSH_KEY="$2"
-            shift 2
-            ;;
-        --backup-suffix)
-            BACKUP_SUFFIX="$2"
-            shift 2
-            ;;
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        --verbose)
-            VERBOSE=true
-            shift
-            ;;
-        --help)
-            usage
-            exit 0
-            ;;
         *)
-            log "ERROR" "Unknown option: $1"
+            echo "ERROR: Unknown option: $1"
             usage
             exit 1
             ;;
@@ -265,9 +212,7 @@ main() {
     # Validate parameters
     validate_params
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log "WARN" "DRY RUN MODE - No actual changes will be made"
-    fi
+
     
     # Check if target directory exists
     if check_remote_directory "$TARGET_HOST" "$TARGET_PATH"; then
