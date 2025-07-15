@@ -25,8 +25,8 @@ usage() {
     echo "  --target-host HOST      Target server hostname/IP"
     echo "  --target-path PATH      Target directory path on remote server"
     echo ""
-    echo "Note: Script uses current user ($CURRENT_USER) for remote connection"
-    echo "Authentication: Tries SSH keys first, then prompts for password"
+    echo "Note: Script uses current user ($CURRENT_USER) for SFTP connection"
+    echo "Authentication: Uses default SFTP authentication (keys or password prompt)"
     echo ""
     echo "Examples:"
     echo "  $0 --source-path /opt/app --target-host 192.168.1.20 --target-path /opt/app"
@@ -87,50 +87,51 @@ validate_params() {
     fi
 }
 
-# Function to build SSH connection string
-build_ssh_opts() {
-    local ssh_opts=""
-    
-    # Try keys first (if available), then password
-    ssh_opts="$ssh_opts -o PreferredAuthentications=publickey,password"
-    
-    # Allow both key and password authentication
-    ssh_opts="$ssh_opts -o StrictHostKeyChecking=ask -o PasswordAuthentication=yes -o PubkeyAuthentication=yes"
-    
-    echo "$ssh_opts"
-}
+# No SSH options needed - using SFTP only
 
 # Function to check if directory exists on remote server
 check_remote_directory() {
     local host=$1
     local path=$2
-    local ssh_opts=$(build_ssh_opts)
     
-
+    # Use SFTP to check if directory exists
+    sftp $CURRENT_USER@$host << EOF > /tmp/check_$$.out 2>&1
+ls $path
+bye
+EOF
     
-    if ssh $ssh_opts $CURRENT_USER@$host "test -d '$path'" 2>/dev/null; then
-        return 0  # Directory exists
-    else
+    if grep -q "No such file" /tmp/check_$$.out; then
+        rm -f /tmp/check_$$.out
         return 1  # Directory doesn't exist
+    else
+        rm -f /tmp/check_$$.out
+        return 0  # Directory exists
     fi
 }
 
-# Function to create backup on target server
+# Function to create backup on target server using SFTP
 create_backup() {
     local host=$1
     local path=$2
-    local ssh_opts=$(build_ssh_opts)
     local backup_path="${path}_backup_${BACKUP_SUFFIX}"
     
-    log "INFO" "Creating backup: $path -> $backup_path"
+    log "INFO" "Removing old backups and creating new backup: $path -> $backup_path"
     
-
+    # Use SFTP to remove old backups and create new one
+    sftp $CURRENT_USER@$host << EOF > /tmp/backup_$$.out 2>&1
+# Remove old backups (ignore errors if none exist)
+-rm -rf ${path}_backup_*
+# Rename existing directory to backup
+rename $path $backup_path
+bye
+EOF
     
-    if ssh $ssh_opts $CURRENT_USER@$host "mv '$path' '$backup_path'" 2>/dev/null; then
+    if [ $? -eq 0 ]; then
         log "INFO" "Backup created successfully: $backup_path"
         return 0
     else
         log "ERROR" "Failed to create backup"
+        rm -f /tmp/backup_$$.out
         return 1
     fi
 }
@@ -145,14 +146,11 @@ transfer_directory() {
     log "INFO" "Source: $(hostname):$source_path"
     log "INFO" "Target: $CURRENT_USER@$target_host:$target_path"
     
-
-    
-    local ssh_opts=$(build_ssh_opts)
     local target_parent=$(dirname "$target_path")
     
     # Upload to target using SFTP
     log "INFO" "Uploading directory to target server..."
-    if sftp $ssh_opts $CURRENT_USER@$target_host << EOF
+    if sftp $CURRENT_USER@$target_host << EOF
 mkdir -p $target_parent
 put -r $source_path $target_parent/
 bye
@@ -166,19 +164,27 @@ EOF
     fi
 }
 
-# Function to verify transfer
+# Function to verify transfer using SFTP
 verify_transfer() {
     local target_host=$1
     local target_path=$2
     
     log "INFO" "Verifying transfer..."
     
-    if check_remote_directory "$target_host" "$target_path"; then
-        log "INFO" "Transfer verification successful"
-        return 0
-    else
+    # Use SFTP to verify the transfer
+    sftp $CURRENT_USER@$target_host << EOF > /tmp/verify_$$.out 2>&1
+ls $target_path
+bye
+EOF
+    
+    if grep -q "No such file" /tmp/verify_$$.out; then
         log "ERROR" "Transfer verification failed"
+        rm -f /tmp/verify_$$.out
         return 1
+    else
+        log "INFO" "Transfer verification successful"
+        rm -f /tmp/verify_$$.out
+        return 0
     fi
 }
 
