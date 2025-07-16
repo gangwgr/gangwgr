@@ -11,7 +11,7 @@ set -e  # Exit on any error
 SOURCE_PATH=""
 TARGET_PATH=""
 TARGET_HOST=""
-BACKUP_SUFFIX=$(date +"%Y%m%d_%H%M%S")
+BACKUP_SUFFIX="latest"
 CURRENT_USER=$(whoami)
 
 # Logging without colors
@@ -123,19 +123,21 @@ create_backup() {
     local path=$2
     local backup_path="${path}_backup_${BACKUP_SUFFIX}"
     
-    log "INFO" "Creating backup if directory exists: $path -> $backup_path"
+    log "INFO" "Managing backups (ensuring only latest backup exists): $path -> $backup_path"
     
-    # Use SFTP to create backup
+    # Clean up existing backup and create new one in single operation
     sftp $CURRENT_USER@$host << EOF > /tmp/backup_$$.out 2>&1
-# Rename existing directory to backup (will fail harmlessly if directory doesn't exist)
+# Remove any existing backup directory (ignore error if doesn't exist)
+-rm $backup_path
+# Rename existing directory to backup if it exists (will fail harmlessly if directory doesn't exist)
 -rename $path $backup_path
 bye
 EOF
     
-    # Don't check exit code - rename will "fail" if directory doesn't exist, which is expected
+    # Clean up temporary files
     rm -f /tmp/backup_$$.out
     
-    log "INFO" "Backup step completed (created backup if target existed)"
+    log "INFO" "Backup management completed (latest backup maintained)"
     return 0
 }
 
@@ -152,9 +154,12 @@ transfer_directory() {
     # Upload to target using SFTP
     log "INFO" "Uploading directory to target server..."
     
+    # Remove trailing slash to avoid double slashes
+    local clean_target_path="${target_path%/}"
+    
     if sftp $CURRENT_USER@$target_host << EOF
--mkdir $target_path
-put -r $source_path $target_path/
+-mkdir $clean_target_path
+put -r $source_path $clean_target_path/
 bye
 EOF
     then
@@ -222,7 +227,9 @@ main() {
     
     # Calculate actual target path (target_location/source_directory_name)
     local source_dirname=$(basename "$SOURCE_PATH")
-    local actual_target_path="$TARGET_PATH/$source_dirname"
+    # Remove trailing slash from TARGET_PATH to avoid double slashes
+    local clean_target_path="${TARGET_PATH%/}"
+    local actual_target_path="$clean_target_path/$source_dirname"
     
     log "INFO" "Source: $(hostname):$SOURCE_PATH"
     log "INFO" "Target location: $TARGET_PATH"
