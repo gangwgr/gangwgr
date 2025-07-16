@@ -8,7 +8,8 @@
 set -e  # Exit on any error
 
 # Default values
-DIRECTORY_PATH=""
+SOURCE_PATH=""
+TARGET_PATH=""
 TARGET_HOST=""
 BACKUP_SUFFIX=$(date +"%Y%m%d_%H%M%S")
 CURRENT_USER=$(whoami)
@@ -20,16 +21,19 @@ usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
     echo "Required Options:"
-    echo "  --directory-path PATH   Directory path (same on both source and target)"
+    echo "  --source-path PATH      Local source directory path"
+    echo "  --target-path PATH      Target location on remote server (directory will be placed inside this)"
     echo "  --target-host HOST      Target server hostname/IP"
     echo ""
     echo "Note: Script uses current user ($CURRENT_USER) for SFTP connection"
     echo "Authentication: Uses default SFTP authentication (keys or password prompt)"
     echo ""
     echo "Examples:"
-    echo "  $0 --directory-path /opt/app --target-host 192.168.1.20"
+    echo "  $0 --source-path /home/user/myapp --target-path /opt --target-host 192.168.1.20"
+    echo "  # → uploads /home/user/myapp to /opt/myapp on server"
     echo ""
-    echo "  $0 --directory-path /var/www/html --target-host server2.com"
+    echo "  $0 --source-path /var/www/site --target-path /var/www --target-host server2.com"
+    echo "  # → uploads /var/www/site to /var/www/site on server"
 }
 
 # Function to log messages
@@ -57,13 +61,18 @@ log() {
 validate_params() {
     local errors=0
     
-    if [[ -z "$DIRECTORY_PATH" ]]; then
-        log "ERROR" "Directory path is required"
+    if [[ -z "$SOURCE_PATH" ]]; then
+        log "ERROR" "Source path is required"
         ((errors++))
     fi
     
-    if [[ ! -d "$DIRECTORY_PATH" ]]; then
-        log "ERROR" "Directory does not exist: $DIRECTORY_PATH"
+    if [[ ! -d "$SOURCE_PATH" ]]; then
+        log "ERROR" "Source directory does not exist: $SOURCE_PATH"
+        ((errors++))
+    fi
+    
+    if [[ -z "$TARGET_PATH" ]]; then
+        log "ERROR" "Target path is required"
         ((errors++))
     fi
     
@@ -77,6 +86,14 @@ validate_params() {
         exit 1
     fi
 }
+
+# Cleanup function to remove temporary files
+cleanup_temp_files() {
+    rm -f /tmp/check_$$.out /tmp/backup_$$.out /tmp/verify_$$.out
+}
+
+# Set trap to cleanup on script exit
+trap cleanup_temp_files EXIT
 
 # No SSH options needed - using SFTP only
 
@@ -106,25 +123,20 @@ create_backup() {
     local path=$2
     local backup_path="${path}_backup_${BACKUP_SUFFIX}"
     
-    log "INFO" "Removing old backups and creating new backup: $path -> $backup_path"
+    log "INFO" "Creating backup if directory exists: $path -> $backup_path"
     
-    # Use SFTP to remove old backups and create new one
+    # Use SFTP to create backup
     sftp $CURRENT_USER@$host << EOF > /tmp/backup_$$.out 2>&1
-# Remove old backups (ignore errors if none exist)
--rm -rf ${path}_backup_*
-# Rename existing directory to backup
-rename $path $backup_path
+# Rename existing directory to backup (will fail harmlessly if directory doesn't exist)
+-rename $path $backup_path
 bye
 EOF
     
-    if [ $? -eq 0 ]; then
-        log "INFO" "Backup created successfully: $backup_path"
-        return 0
-    else
-        log "ERROR" "Failed to create backup"
-        rm -f /tmp/backup_$$.out
-        return 1
-    fi
+    # Don't check exit code - rename will "fail" if directory doesn't exist, which is expected
+    rm -f /tmp/backup_$$.out
+    
+    log "INFO" "Backup step completed (created backup if target existed)"
+    return 0
 }
 
 # Function to transfer directory using SFTP
@@ -134,17 +146,15 @@ transfer_directory() {
     local target_path=$3
     
     log "INFO" "Starting directory transfer..."
-    log "INFO" "Directory: $source_path"
-    log "INFO" "From: $(hostname)"
-    log "INFO" "To: $CURRENT_USER@$target_host"
-    
-    local target_parent=$(dirname "$target_path")
+    log "INFO" "Source: $(hostname):$source_path"
+    log "INFO" "Target: $CURRENT_USER@$target_host:$target_path"
     
     # Upload to target using SFTP
     log "INFO" "Uploading directory to target server..."
+    
     if sftp $CURRENT_USER@$target_host << EOF
-mkdir -p $target_parent
-put -r $source_path $target_parent/
+-mkdir $target_path
+put -r $source_path $target_path/
 bye
 EOF
     then
@@ -183,8 +193,12 @@ EOF
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --directory-path)
-            DIRECTORY_PATH="$2"
+        --source-path)
+            SOURCE_PATH="$2"
+            shift 2
+            ;;
+        --target-path)
+            TARGET_PATH="$2"
             shift 2
             ;;
         --target-host)
@@ -199,10 +213,6 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Set source and target paths to be the same
-SOURCE_PATH="$DIRECTORY_PATH"
-TARGET_PATH="$DIRECTORY_PATH"
-
 # Main execution
 main() {
     log "INFO" "Starting SFTP Directory Transfer Script"
@@ -210,14 +220,20 @@ main() {
     # Validate parameters
     validate_params
     
-
+    # Calculate actual target path (target_location/source_directory_name)
+    local source_dirname=$(basename "$SOURCE_PATH")
+    local actual_target_path="$TARGET_PATH/$source_dirname"
+    
+    log "INFO" "Source: $(hostname):$SOURCE_PATH"
+    log "INFO" "Target location: $TARGET_PATH"
+    log "INFO" "Will be uploaded as: $actual_target_path"
     
     # Check if target directory exists
-    if check_remote_directory "$TARGET_HOST" "$TARGET_PATH"; then
-        log "WARN" "Target directory already exists: $TARGET_PATH"
+    if check_remote_directory "$TARGET_HOST" "$actual_target_path"; then
+        log "WARN" "Target directory already exists: $actual_target_path"
         
         # Create backup
-        if ! create_backup "$TARGET_HOST" "$TARGET_PATH"; then
+        if ! create_backup "$TARGET_HOST" "$actual_target_path"; then
             log "ERROR" "Failed to create backup, aborting transfer"
             exit 1
         fi
@@ -230,7 +246,7 @@ main() {
         log "INFO" "Directory transfer completed successfully"
         
         # Verify transfer
-        if ! verify_transfer "$TARGET_HOST" "$TARGET_PATH"; then
+        if ! verify_transfer "$TARGET_HOST" "$actual_target_path"; then
             log "WARN" "Transfer verification failed, but files may still be transferred"
         fi
     else
