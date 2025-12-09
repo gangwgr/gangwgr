@@ -1,0 +1,85 @@
+name: Generate Stats Card
+
+on:
+  # Run daily at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+  # Run on push to main branch
+  push:
+    branches:
+      - main
+    paths:
+      - 'generate-stats-card.go'
+      - '.github/workflows/generate-stats.yml'
+
+jobs:
+  generate-stats-card:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run tests
+        run: go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Generate stats card
+        env:
+          GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_USERNAME: gangwgr
+          OUTPUT_DIR: output
+          VERBOSE: true
+        run: |
+          go run generate-stats-card.go
+
+      - name: Verify output
+        run: |
+          if [ ! -f output/stats-card.svg ]; then
+            echo "Error: stats-card.svg was not generated"
+            exit 1
+          fi
+          echo "Stats card generated successfully"
+          ls -lh output/
+
+      - name: Commit and push if changed
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+          # Create output branch if it doesn't exist
+          git checkout -B output
+
+          # Add only the output directory
+          git add -f output/stats-card.svg
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update stats card - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+            git push -f origin output
+            echo "Stats card updated successfully"
+          fi
+
+      - name: Update coverage badge (optional)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo "Coverage report generated"
+          go tool cover -func=coverage.out

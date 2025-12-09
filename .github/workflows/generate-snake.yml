@@ -1,0 +1,57 @@
+name: Generate Contribution Snake
+
+on:
+  # Run daily at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * *'
+
+  # Allow manual trigger
+  workflow_dispatch:
+
+  # Run on push to main branch
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/generate-snake.yml'
+
+jobs:
+  generate-snake:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate snake animation
+        uses: Platane/snk@v3
+        with:
+          github_user_name: gangwgr
+          outputs: |
+            output/github-contribution-grid-snake.svg
+            output/github-contribution-grid-snake-dark.svg?palette=github-dark
+
+      - name: Commit and push if changed
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+          # Create output branch if it doesn't exist
+          git checkout -B output
+
+          # Add the snake animations
+          git add -f output/github-contribution-grid-snake.svg
+          git add -f output/github-contribution-grid-snake-dark.svg
+
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update contribution snake - $(date +'%Y-%m-%d %H:%M:%S UTC')"
+            git push -f origin output
+            echo "Contribution snake updated successfully"
+          fi
