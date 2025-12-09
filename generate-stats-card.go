@@ -266,7 +266,7 @@ func generateStatsCardSVG(stats *StatsCard) string {
     }
   </style>
 
-  <rect class="card-bg" x="0.5" y="0.5" rx="4.5" height="99%%" width="599" class="card-border" stroke-width="1" stroke-opacity="1"/>
+  <rect class="card-bg card-border" x="0.5" y="0.5" rx="4.5" height="99%%" width="599" stroke-width="1" stroke-opacity="1"/>
 
   <g transform="translate(25, 30)">
     <!-- Total Stars -->

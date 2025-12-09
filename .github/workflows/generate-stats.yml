@@ -63,8 +63,21 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          # Create output branch if it doesn't exist
-          git checkout -B output
+          # Fetch the output branch if it exists
+          git fetch origin output:output 2>/dev/null || true
+
+          # Check out output branch (create if it doesn't exist)
+          if git show-ref --verify --quiet refs/heads/output; then
+            git checkout output
+            git pull origin output || true
+          else
+            git checkout --orphan output
+            # Remove all files from the index for a clean orphan branch
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Copy stats card to output branch
+          git checkout main -- stats-card.svg
 
           # Add the stats card
           git add -f stats-card.svg
@@ -74,7 +87,7 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update stats card - $(date +'%Y-%m-%d %H:%M:%S UTC')"
-            git push -f origin output
+            git push origin output
             echo "Stats card updated successfully"
           fi
 

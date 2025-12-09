@@ -40,8 +40,26 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-          # Create output branch if it doesn't exist
-          git checkout -B output
+          # Save the snake files to a temporary location
+          mkdir -p /tmp/snake-output
+          cp github-contribution-grid-snake.svg /tmp/snake-output/ 2>/dev/null || true
+          cp github-contribution-grid-snake-dark.svg /tmp/snake-output/ 2>/dev/null || true
+
+          # Fetch the output branch if it exists
+          git fetch origin output:output 2>/dev/null || true
+
+          # Check out output branch (create if it doesn't exist)
+          if git show-ref --verify --quiet refs/heads/output; then
+            git checkout output
+            git pull origin output || true
+          else
+            git checkout --orphan output
+            # Remove all files from the index for a clean orphan branch
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Copy snake animations back from temporary location
+          cp /tmp/snake-output/*.svg . 2>/dev/null || true
 
           # Add the snake animations
           git add -f github-contribution-grid-snake.svg
@@ -52,6 +70,6 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Update contribution snake - $(date +'%Y-%m-%d %H:%M:%S UTC')"
-            git push -f origin output
+            git push origin output
             echo "Contribution snake updated successfully"
           fi
