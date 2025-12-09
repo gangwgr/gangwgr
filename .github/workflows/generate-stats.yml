@@ -63,6 +63,10 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
+          # Save the stats card to a temporary location
+          mkdir -p /tmp/stats-output
+          cp stats-card.svg /tmp/stats-output/
+
           # Fetch the output branch if it exists
           git fetch origin output:output 2>/dev/null || true
 
@@ -76,8 +80,8 @@ jobs:
             git rm -rf . 2>/dev/null || true
           fi
 
-          # Copy stats card to output branch
-          git checkout main -- stats-card.svg
+          # Copy stats card back from temporary location
+          cp /tmp/stats-output/stats-card.svg .
 
           # Add the stats card
           git add -f stats-card.svg
