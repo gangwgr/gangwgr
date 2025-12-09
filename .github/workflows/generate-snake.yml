@@ -32,8 +32,8 @@ jobs:
         with:
           github_user_name: gangwgr
           outputs: |
-            output/github-contribution-grid-snake.svg
-            output/github-contribution-grid-snake-dark.svg?palette=github-dark
+            github-contribution-grid-snake.svg
+            github-contribution-grid-snake-dark.svg?palette=github-dark
 
       - name: Commit and push if changed
         run: |
@@ -44,8 +44,8 @@ jobs:
           git checkout -B output
 
           # Add the snake animations
-          git add -f output/github-contribution-grid-snake.svg
-          git add -f output/github-contribution-grid-snake-dark.svg
+          git add -f github-contribution-grid-snake.svg
+          git add -f github-contribution-grid-snake-dark.svg
 
           # Check if there are changes to commit
           if git diff --staged --quiet; then

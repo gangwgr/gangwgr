@@ -44,19 +44,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.STATS_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_USERNAME: gangwgr
-          OUTPUT_DIR: output
+          OUTPUT_DIR: .
           VERBOSE: true
         run: |
           go run generate-stats-card.go
 
       - name: Verify output
         run: |
-          if [ ! -f output/stats-card.svg ]; then
+          if [ ! -f stats-card.svg ]; then
             echo "Error: stats-card.svg was not generated"
             exit 1
           fi
           echo "Stats card generated successfully"
-          ls -lh output/
+          ls -lh stats-card.svg
 
       - name: Commit and push if changed
         run: |
@@ -66,8 +66,8 @@ jobs:
           # Create output branch if it doesn't exist
           git checkout -B output
 
-          # Add only the output directory
-          git add -f output/stats-card.svg
+          # Add the stats card
+          git add -f stats-card.svg
 
           # Check if there are changes to commit
           if git diff --staged --quiet; then
